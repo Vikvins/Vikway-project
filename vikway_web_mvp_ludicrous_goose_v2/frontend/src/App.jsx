@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CircleMarker,
   MapContainer,
@@ -33,7 +33,17 @@ function formatMeters(lengthM) {
 }
 
 function formatMinutes(value) {
-  return `${Math.round(value)} мин`;
+  const totalMinutes = Math.max(0, Math.round(value));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours === 0) {
+    return `${minutes} мин`;
+  }
+  if (minutes === 0) {
+    return `${hours} ч`;
+  }
+  return `${hours} ч ${minutes} мин`;
 }
 
 function formatNoise(value) {
@@ -62,6 +72,7 @@ export default function App() {
   const [snapped, setSnapped] = useState({ start: null, end: null });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const resultsRef = useRef(null);
 
   useEffect(() => {
     fetchMeta()
@@ -119,6 +130,9 @@ export default function App() {
       });
       setRoutes(response.routes ?? []);
       setSnapped({ start: response.snapped_start, end: response.snapped_end });
+      window.setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
     } catch (err) {
       setError(String(err.message || err));
       setRoutes([]);
@@ -200,123 +214,137 @@ export default function App() {
         </div>
 
         {error && <p className="error">{error}</p>}
-
-        <div className="routes-list">
-          {routes.map((route) => (
-            <article key={route.id} className={route.selected ? "route-card selected" : "route-card"}>
-              <h3>{route.label}</h3>
-              <p>Длина: {formatMeters(route.length_m)}</p>
-              <p>Время: {formatMinutes(route.eta_min)}</p>
-              <p>Шум: {formatNoise(route.avg_noise)}</p>
-              <p>Озеленение: {formatGreen(route.avg_green)}</p>
-            </article>
-          ))}
-        </div>
       </aside>
 
       <main className="map-area">
-        <MapContainer center={center} zoom={12} className="map">
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-
-          <MapClickHandler onClick={handleMapClick} />
-
-          {start && (
-            <CircleMarker center={[start.lat, start.lon]} radius={7} pathOptions={{ color: "#1565c0" }}>
-              <Tooltip direction="top" offset={[0, -6]} opacity={1}>
-                Старт
-              </Tooltip>
-            </CircleMarker>
+        <section ref={resultsRef} className="panel-section results-section">
+          <div className="section-header">
+            <h2>Найденные маршруты</h2>
+            {routes.length > 0 ? <span className="section-badge">{routes.length}</span> : null}
+          </div>
+          {routes.length > 0 ? (
+            <div className="routes-list">
+              {routes.map((route) => (
+                <article key={route.id} className={route.selected ? "route-card selected" : "route-card"}>
+                  <h3>{route.label}</h3>
+                  <p>Длина: {formatMeters(route.length_m)}</p>
+                  <p>Время: {formatMinutes(route.eta_min)}</p>
+                  <p>Шум: {formatNoise(route.avg_noise)}</p>
+                  <p>Озеленение: {formatGreen(route.avg_green)}</p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="section-empty">Постройте маршрут, чтобы сравнить варианты по длине, шуму и озеленению.</p>
           )}
+        </section>
 
-          {end && (
-            <CircleMarker center={[end.lat, end.lon]} radius={7} pathOptions={{ color: "#d32f2f" }}>
-              <Tooltip direction="top" offset={[0, -6]} opacity={1}>
-                Финиш
-              </Tooltip>
-            </CircleMarker>
-          )}
+        <section className="panel-section map-section">
+          <div className="section-header">
+            <h2>Карта маршрутов</h2>
+          </div>
+          <div className="map-frame">
+            <MapContainer center={center} zoom={12} className="map">
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
 
-        {snapped.start && (
-            <>
-              <CircleMarker
-                center={[snapped.start.lat, snapped.start.lon]}
-                radius={5}
-                pathOptions={{ color: "#1565c0", fillOpacity: 0.5 }}
-              >
-                <Tooltip direction="top" offset={[0, -6]} opacity={1}>
-                  Привязка к графу
-                </Tooltip>
-              </CircleMarker>
+              <MapClickHandler onClick={handleMapClick} />
+
               {start && (
-                <Polyline
-                  positions={[
-                    [start.lat, start.lon],
-                    [snapped.start.lat, snapped.start.lon],
-                  ]}
-                  pathOptions={{
-                    color: "#1565c0",
-                    weight: 3,
-                    opacity: 0.7,
-                    dashArray: "6 8",
-                  }}
-                >
-                  <Tooltip>Привязка старта к дорожному графу</Tooltip>
-                </Polyline>
+                <CircleMarker center={[start.lat, start.lon]} radius={7} pathOptions={{ color: "#1565c0" }}>
+                  <Tooltip direction="top" offset={[0, -6]} opacity={1}>
+                    Старт
+                  </Tooltip>
+                </CircleMarker>
               )}
-            </>
-          )}
 
-          {snapped.end && (
-            <>
-              <CircleMarker
-                center={[snapped.end.lat, snapped.end.lon]}
-                radius={5}
-                pathOptions={{ color: "#d32f2f", fillOpacity: 0.5 }}
-              >
-                <Tooltip direction="top" offset={[0, -6]} opacity={1}>
-                  Привязка к графу
-                </Tooltip>
-              </CircleMarker>
               {end && (
+                <CircleMarker center={[end.lat, end.lon]} radius={7} pathOptions={{ color: "#d32f2f" }}>
+                  <Tooltip direction="top" offset={[0, -6]} opacity={1}>
+                    Финиш
+                  </Tooltip>
+                </CircleMarker>
+              )}
+
+              {snapped.start && (
+                <>
+                  <CircleMarker
+                    center={[snapped.start.lat, snapped.start.lon]}
+                    radius={5}
+                    pathOptions={{ color: "#1565c0", fillOpacity: 0.5 }}
+                  >
+                    <Tooltip direction="top" offset={[0, -6]} opacity={1}>
+                      Привязка к графу
+                    </Tooltip>
+                  </CircleMarker>
+                  {start && (
+                    <Polyline
+                      positions={[
+                        [start.lat, start.lon],
+                        [snapped.start.lat, snapped.start.lon],
+                      ]}
+                      pathOptions={{
+                        color: "#1565c0",
+                        weight: 3,
+                        opacity: 0.7,
+                        dashArray: "6 8",
+                      }}
+                    >
+                      <Tooltip>Привязка старта к дорожному графу</Tooltip>
+                    </Polyline>
+                  )}
+                </>
+              )}
+
+              {snapped.end && (
+                <>
+                  <CircleMarker
+                    center={[snapped.end.lat, snapped.end.lon]}
+                    radius={5}
+                    pathOptions={{ color: "#d32f2f", fillOpacity: 0.5 }}
+                  >
+                    <Tooltip direction="top" offset={[0, -6]} opacity={1}>
+                      Привязка к графу
+                    </Tooltip>
+                  </CircleMarker>
+                  {end && (
+                    <Polyline
+                      positions={[
+                        [end.lat, end.lon],
+                        [snapped.end.lat, snapped.end.lon],
+                      ]}
+                      pathOptions={{
+                        color: "#d32f2f",
+                        weight: 3,
+                        opacity: 0.7,
+                        dashArray: "6 8",
+                      }}
+                    >
+                      <Tooltip>Привязка финиша к дорожному графу</Tooltip>
+                    </Polyline>
+                  )}
+                </>
+              )}
+
+              {routes.map((route) => (
                 <Polyline
-                  positions={[
-                    [end.lat, end.lon],
-                    [snapped.end.lat, snapped.end.lon],
-                  ]}
+                  key={route.id}
+                  positions={route.coordinates}
                   pathOptions={{
-                    color: "#d32f2f",
-                    weight: 3,
-                    opacity: 0.7,
-                    dashArray: "6 8",
+                    color: route.color,
+                    weight: route.selected ? 6 : 4,
+                    opacity: route.selected ? 1.0 : 0.9,
                   }}
                 >
-                  <Tooltip>Привязка финиша к дорожному графу</Tooltip>
+                  <Tooltip>{route.label}</Tooltip>
                 </Polyline>
-              )}
-            </>
-          )}
-
-          {routes.map((route) => (
-            <Polyline
-              key={route.id}
-              positions={route.coordinates}
-              pathOptions={{
-                color: route.color,
-                weight: route.selected ? 6 : 4,
-                opacity: route.selected ? 1.0 : 0.9,
-              }}
-            >
-              <Tooltip>{route.label}</Tooltip>
-            </Polyline>
-          ))}
-        </MapContainer>
+              ))}
+            </MapContainer>
+          </div>
+        </section>
       </main>
     </div>
   );
 }
-
-
-
