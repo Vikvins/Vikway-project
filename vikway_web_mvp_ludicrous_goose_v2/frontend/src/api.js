@@ -1,7 +1,5 @@
 ﻿const envApiBase = import.meta.env.VITE_API_BASE_URL;
-const API_BASE = envApiBase && envApiBase.trim().length > 0
-  ? envApiBase
-  : `${window.location.protocol}//${window.location.hostname}:8000`;
+const API_BASE = envApiBase && envApiBase.trim().length > 0 ? envApiBase : "";
 
 export async function fetchMeta() {
   const response = await fetch(`${API_BASE}/api/meta`);
